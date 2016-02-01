@@ -78,15 +78,31 @@ class Steg {
         int argb2 = imageBI.getRGB(0, 0);
         //printInt("0,0 after set: ", argb2);
 
-        String binary = null;
+        String binary = "";
         try{
-            binary = new BigInteger(payload.getBytes( "US-ASCII" )).toString(2);
+            // binary = new BigInteger(payload.getBytes( "US-ASCII" )).toString(2);
+            byte[] something = payload.getBytes( "US-ASCII" );
+            // System.out.println(Arrays.toString(something));
+            // System.out.println("bigInteger " + new BigInteger(something));
+            // System.out.println("toString(2) " + new BigInteger(something).toString(2));
+
+            for(int i = 0 ; i < something.length; i++){
+                byte p = something[i];
+                System.out.println(i + " : " + p);
+                // String output = Integer.toBinaryString(p & 0xFF);
+                String output = String.format("%8s", Integer.toBinaryString(p & 0xFF)).replace(' ', '0');
+                System.out.println(output);
+                binary +=output;
+            }
+
+
         } catch (Exception e){
             e.printStackTrace();
             return "Fail";
         }
         //System.out.println("binary: " + binary);
         char[] bitsArray = binary.toCharArray();
+        System.out.println(Arrays.toString(bitsArray));
 
         for (int row = 0, charsIndex = 0; row < h && charsIndex < bitsArray.length; row++) {
             for (int col = 0; col < w && charsIndex < bitsArray.length; col++) {
@@ -191,7 +207,7 @@ class Steg {
             String integerBinaryValueString = b.toString();
             //System.out.print(integerBinaryValueString + "\t");
             int value = Integer.parseInt(integerBinaryValueString, 2);
-            char c = (char) (value / 2);
+            char c = (char) (value);
             decodedMessage.append(c);
 //            byte[] bval = new BigInteger(integerBinaryValueString, 2).toByteArray();
 //            String output = new String(bval);

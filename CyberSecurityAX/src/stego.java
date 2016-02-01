@@ -10,7 +10,7 @@ class Steg {
 	private static final int MASK_0 = 0xFFFFFFFE;
     private static final int MASK_1 = 0x1;
     private static final int DE_MASK_1 = 0x1;
-	
+
 
     /**
      * A constant to hold the number of bits per byte
@@ -53,9 +53,9 @@ class Steg {
 			imageBI = ImageIO.read(imageFile);
 		} catch (IOException e) {
 			e.printStackTrace();
-			return "Fail";	
+			return "Fail";
 		}
-		
+
         int w = imageBI.getWidth();
         int h = imageBI.getHeight();
 
@@ -78,7 +78,13 @@ class Steg {
         int argb2 = imageBI.getRGB(0, 0);
         //printInt("0,0 after set: ", argb2);
 
-        String binary = new BigInteger(payload.getBytes()).toString(2);
+        String binary = null;
+        try{
+            binary = new BigInteger(payload.getBytes( "US-ASCII" )).toString(2);
+        } catch (Exception e){
+            e.printStackTrace();
+            return "Fail";
+        }
         //System.out.println("binary: " + binary);
         char[] bitsArray = binary.toCharArray();
 
@@ -103,14 +109,14 @@ class Steg {
             }
         }
 
-        String stegoImageToReturn = "outputStegoImage.bmp";
+        String stegoImageToReturn = "outSI.bmp";
         try {
             ImageIO.write(imageBI, "bmp", new File(stegoImageToReturn));
         } catch (Exception e) {
             e.printStackTrace();
             return "Fail";
         }
-       
+
         return stegoImageToReturn;
     }
 
@@ -123,7 +129,7 @@ class Steg {
      * was unsuccessful
      */
     public String extractString(String stego_image) {
-    	
+
         File decodeImage = new File(stego_image);
         BufferedImage imageBI = null;
 		try {
@@ -193,7 +199,7 @@ class Steg {
 //            Integer result = anInt / 2;
 //            System.out.println(result.toString());
         }
-		
+
         return decodedMessage.toString();
     }
 

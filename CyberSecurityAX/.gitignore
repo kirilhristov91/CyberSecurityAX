@@ -1,0 +1,5 @@
+.DS_Store
+*.class
+outputStegoImage.bmp
+*.DS_Store
+**/.DS_Store

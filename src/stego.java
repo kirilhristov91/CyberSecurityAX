@@ -17,7 +17,8 @@ class Steg {
     int msgLengthStartIndex = headerLenght;
     int msgLengthEndIndex = sizeBitsLength + headerLenght;
 
-    int DecodeMask = 0x1;
+    int extensionStartIndex = msgLengthEndIndex;
+    int extensionEndIndex = extensionStartIndex + extBitsLength;
 
     public Steg() {
 
@@ -39,9 +40,6 @@ class Steg {
             return "Fail";
         }
 
-        int payloadByteIndex = 0;
-        int bitIndex = 0;
-        System.out.println("payloads byte array: " + Arrays.toString(payloadBytesArray));
         int availableBytesInPic = imageBytesArray.length;
 
         // zapisvame duljinata v 1-vite 32 byte-a sled headera
@@ -52,38 +50,22 @@ class Steg {
 
         }
 
+        // zapisvame bitovete
         BitSet set = BitSet.valueOf(payloadBytesArray);
-        System.out.println("set: " + Arrays.toString(set.toByteArray()));
-
-
         int setIndex = 0;
-        int setLength = set.length();
-        int estimatedLenght = payloadBytesArray.length * byteLength;
-        while(setLength < estimatedLenght){
-            setLength++;
-        }
-        
+        int setLength = payloadBytesArray.length * byteLength;
+
         for (int currByteInImage = msgLengthEndIndex; currByteInImage < availableBytesInPic && setIndex < setLength; currByteInImage++) {
             imageBytesArray[currByteInImage] = (byte) swapLsb(
                     set.get(setIndex) ? 1 : 0,
                     imageBytesArray[currByteInImage]);
             setIndex++;
         }
-        System.out.println("setIndex: " + setIndex);
-
-        for (int i = 0; i < set.length(); i++) {
-            System.out.print(set.get(i) ? 1 : 0);
-            if (i % 8 == 0 && i != 0) {
-                System.out.println();
-            }
-        }
 
         try {
             FileOutputStream fos = new FileOutputStream(new File("outSI.bmp"));
             fos.write(imageBytesArray);
             fos.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -95,7 +77,6 @@ class Steg {
     public String extractString(String stego_image) {
         byte[] imageBytesArray = null;
         Path path = Paths.get(stego_image);
-        System.out.println(path);
         try {
             imageBytesArray = Files.readAllBytes(path);
         } catch (IOException e) {
@@ -118,7 +99,7 @@ class Steg {
             );
             outSetIndex++;
         }
-        System.out.println("outset.length: "+ outSet.length());
+        System.out.println("outset.length: " + outSet.length());
         System.out.println(Arrays.toString(outSet.toByteArray()));
 
         String result = "";
@@ -132,12 +113,129 @@ class Steg {
     }
 
     public String hideFile(String file_payload, String cover_image) {
-        return null;
+        byte[] imageBytesArray = null;
+        byte[] payloadBytesArray = null;
+        Path imagePath = Paths.get(cover_image);
+        Path payloadPath = Paths.get(file_payload);
+        try {
+            imageBytesArray = Files.readAllBytes(imagePath);
+            payloadBytesArray = Files.readAllBytes(payloadPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "Fail";
+        }
+        byte[] extensionBytes = new byte[extBitsLength / 8];
+        int n = file_payload.lastIndexOf('.');
+        if (n > 0) {
+            try {
+                System.arraycopy(file_payload.substring(n + 1).getBytes("US-ASCII"), 0, extensionBytes, 0, file_payload.substring(n + 1).getBytes().length);
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+        }
+        int availableBytesInPic = imageBytesArray.length;
+
+        // save length
+        for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
+            imageBytesArray[i] = (byte) swapLsb(
+                    getBit(payloadBytesArray.length, i - msgLengthStartIndex),
+                    imageBytesArray[i]);
+
+        }
+
+        // zapisvame extension
+        BitSet extSet = BitSet.valueOf(extensionBytes);
+        int extSetIndex = 0;
+        int extSetLength = extBitsLength;
+
+        for (int currByteInImage = extensionStartIndex; currByteInImage < extSetLength; currByteInImage++) {
+            imageBytesArray[currByteInImage] = (byte) swapLsb(
+                    extSet.get(extSetIndex) ? 1 : 0,
+                    imageBytesArray[currByteInImage]
+            );
+        }
+
+        // zapisvame payload-a
+        BitSet payloadSet = BitSet.valueOf(payloadBytesArray);
+        int setIndex = 0;
+        int setLength = payloadBytesArray.length * byteLength;
+
+        for (int currByteInImage = extensionEndIndex; currByteInImage < availableBytesInPic && setIndex < setLength; currByteInImage++) {
+            imageBytesArray[currByteInImage] = (byte) swapLsb(
+                    payloadSet.get(setIndex) ? 1 : 0,
+                    imageBytesArray[currByteInImage]);
+            setIndex++;
+        }
+
+        try {
+            FileOutputStream fos = new FileOutputStream(new File("outFile.bmp"));
+            fos.write(imageBytesArray);
+            fos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        return "outFile.bmp";
     }
 
     public String extractFile(String stego_image) {
+        byte[] imageBytesArray = null;
+        Path path = Paths.get(stego_image);
+        try {
+            imageBytesArray = Files.readAllBytes(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "Fail";
+        }
 
-        return null;
+        // get length
+        int fileLength = 0;
+        for (int currByteInImage = msgLengthEndIndex; currByteInImage >= msgLengthStartIndex; currByteInImage--) {
+            fileLength = (fileLength << 1) | getBit(imageBytesArray[currByteInImage], 0);
+        }
+
+        // get extension bits
+        BitSet outExtSet = new BitSet();
+        int outExtSetIndex = 0;
+
+        for (int currByteInImage = extensionStartIndex; currByteInImage < extensionEndIndex; currByteInImage++) {
+            boolean bit = getBit(imageBytesArray[currByteInImage], 0) == 1;
+            outExtSet.set(outExtSetIndex, bit);
+            outExtSetIndex++;
+        }
+
+        String extension = "";
+        try {
+            extension = new String(outExtSet.toByteArray(), "US-ASCII");
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+
+        // get file bits
+        BitSet outFileSet = new BitSet();
+        int outFileSetIndex = 0;
+        for (int currByteInImage = extensionEndIndex; currByteInImage < extensionEndIndex + fileLength * byteLength; currByteInImage++) {
+            boolean bit = getBit(imageBytesArray[currByteInImage], 0) == 1;
+            outFileSet.set(outFileSetIndex, bit);
+            outFileSetIndex++;
+        }
+
+
+        // saving file
+        String outFileName = "mazniqFail" + "." + extension;
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(new File(outFileName));
+            fos.write(outFileSet.toByteArray());
+            fos.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return outFileName;
     }
 
     public int swapLsb(int bitToHide, int byt) {

@@ -28,7 +28,7 @@ import java.awt.image.DataBufferByte;
 import java.awt.image.ColorModel;
 import java.awt.image.ComponentColorModel;
 import java.awt.color.ColorSpace;
-
+import java.awt.Color;
 
 
 class Steg {
@@ -89,16 +89,14 @@ public String hideString(String payload, String cover_filename) {
         // calculate num of pixels
         int numOfPixels = w * h;
 
-        byte[] imageBytesArray = null;
+        byte[] imagesPixelsBytesArray = null;
         byte[] msgByteArray = null;
 
         String binary = "";
         try {
 
                 // get pixels
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(imageBI, "bmp", baos);
-                imageBytesArray = baos.toByteArray();
+                imagesPixelsBytesArray = ((DataBufferByte) imageBI.getRaster().getDataBuffer()).getData();
 
                 msgByteArray = payload.getBytes("US-ASCII");
 
@@ -112,81 +110,51 @@ public String hideString(String payload, String cover_filename) {
                 }
                 System.out.println("msgByteArray: \n" + Arrays.toString(msgByteArray));
                 System.out.println("binary: \n" + binary);
-                System.out.println("imageBytesArray.length: " + imageBytesArray.length + ", pixels: " + numOfPixels);
+                System.out.println("imagesPixelsBytesArray.length: " + imagesPixelsBytesArray.length + ", pixels: " + numOfPixels);
         } catch (Exception e) {
                 e.printStackTrace();
                 return "Fail";
         }
         char[] bitsArray = binary.toCharArray();
         System.out.println("bitsArray.length: " + bitsArray.length);
-        System.out.println("imageBytesArray[0]: " + imageBytesArray[0]);
-        imageBytesArray[0] = (byte)bitsArray.length;
-        System.out.println("imageBytesArray[0]: " + imageBytesArray[0]);
+        System.out.println("imagesPixelsBytesArray[0]: " + imagesPixelsBytesArray[0]);
+        imagesPixelsBytesArray[0] = (byte)bitsArray.length;
+        System.out.println("imagesPixelsBytesArray[0]: " + imagesPixelsBytesArray[0]);
 
-        for (int imageBytesIndex = 1, msgBytesIndex = 0; msgBytesIndex < bitsArray.length && imageBytesIndex < imageBytesArray.length; imageBytesIndex++) {
+        for (int imageBytesIndex = 1, msgBytesIndex = 0; msgBytesIndex < bitsArray.length && imageBytesIndex < imagesPixelsBytesArray.length; imageBytesIndex++) {
 
               // System.out.println("---------- msgBytesIndex: "+msgBytesIndex+", imageBytesIndex: "+imageBytesIndex+" -----------------\n");
               int bit = bitsArray[msgBytesIndex] == '1' ? 1 : 0;
-              // System.out.println("replace:" + imageBytesArray[imageBytesIndex] + ", with: " + bit);
-              int newValue = swapLsb(bit,(int)imageBytesArray[imageBytesIndex]);
+              // System.out.println("replace:" + imagesPixelsBytesArray[imageBytesIndex] + ", with: " + bit);
+              int newValue = swapLsb(bit,(int)imagesPixelsBytesArray[imageBytesIndex]);
               // System.out.println("newValue: " + newValue + ", (byte)newValue: " + ((byte)newValue));
-              imageBytesArray[imageBytesIndex] = (byte)newValue;
+              imagesPixelsBytesArray[imageBytesIndex] = (byte)newValue;
               msgBytesIndex++;
               // System.out.println("\n------------------------------------------");
         }
+        // System.out.println("imagesPixelsBytesArray: " + Arrays.toString(imagesPixelsBytesArray));
+
+        for (int row = 0, ipbaIndex =0 ; row < h && ipbaIndex < bitsArray.length ; row ++){
+          for (int col = 0; col < w && ipbaIndex < bitsArray.length; col ++){
+            int r = imagesPixelsBytesArray[ipbaIndex++] & 0xFF;
+            int g = imagesPixelsBytesArray[ipbaIndex++] & 0xFF;
+            int b = imagesPixelsBytesArray[ipbaIndex++] & 0xFF;
+            System.out.println("r,b,g: " + r +","+ b + ","+g);
+            int c = new Color(r,g,b).getRGB();
+            imageBI.setRGB(col,row,c);
+          }
+        }
 
         String stegoImageToReturn = "outSI2.bmp";
-        // ByteArrayInputStream bais = new ByteArrayInputStream(imageBytesArray);
+        // ByteArrayInputStream bais = new ByteArrayInputStream(imagesPixelsBytesArray);
         try {
-            // InputStream in = new ByteArrayInputStream(imageBytesArray);
-            // BufferedImage outImage=ImageIO.read(new File(stegoImageToReturn);
-            // // BufferedImage outImage = ImageIO.read(in);
-            // ImageIO.write(outImage, "bmp", in);
-            // FileOutputStream out = new FileOutputStream(new File(stegoImageToReturn));
-            // out.write(imageBytesArray);
-            // out.flush();
-            // out.close();
+            ImageIO.write(imageBI, "bmp", new File(stegoImageToReturn));
 
-            // BufferedImage img = ImageIO.read(new ByteArrayInputStream(imageBytesArray));
-            // ImageIO.write(img, "bmp", new File(stegoImageToReturn));
 
-            // FileOutputStream fos = new FileOutputStream(stegoImageToReturn);
-            // fos.write(imageBytesArray);
+            // FileOutputStream fos = new FileOutputStream(new File(stegoImageToReturn));
+            // fos.write(imagesPixelsBytesArray);
             // fos.flush();
             // fos.close();
-
-
-            // final BufferedImage bufferedImage = ImageIO.read(new ByteArrayInputStream(imageBytesArray));
-            // ImageIO.write(bufferedImage, "jpg", new File(stegoImageToReturn));
-
-            //
-            // ByteArrayInputStream bis = new ByteArrayInputStream(imageBytesArray);
-            // Iterator<?> readers = ImageIO.getImageReadersByFormatName("bmp");
-            //
-            // //ImageIO is a class containing static methods for locating ImageReaders
-            // //and ImageWriters, and performing simple encoding and decoding.
-            //
-            // ImageReader reader = (ImageReader) readers.next();
-            // Object source = bis;
-            // ImageInputStream iis = ImageIO.createImageInputStream(source);
-            // reader.setInput(iis, true);
-            // ImageReadParam param = reader.getDefaultReadParam();
-            //
-            // Image image = reader.read(0, param);
-            // //got an image file
-            //
-            // BufferedImage bufferedImage = new BufferedImage(image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_RGB);
-            // //bufferedImage is the RenderedImage to be written
-            //
-            // Graphics2D g2 = bufferedImage.createGraphics();
-            // g2.drawImage(image, null, null);
-            //
-            // File outImageFile = new File(stegoImageToReturn);
-            // ImageIO.write(bufferedImage, "bmp", outImageFile);
-
-            BufferedImage outBuffImage = createRGBImage(imageBytesArray, w,h);
-            ImageIO.write(outBuffImage, "bmp", new File(stegoImageToReturn));
-
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -194,17 +162,6 @@ public String hideString(String payload, String cover_filename) {
         }
 
         return stegoImageToReturn;
-}
-private static BufferedImage createRGBImage(byte[] bytes, int width, int height) {
-    DataBufferByte buffer = new DataBufferByte(bytes, bytes.length);
-    ColorModel cm = new ComponentColorModel(
-      ColorSpace.getInstance(ColorSpace.CS_sRGB),
-      new int[]{8, 8, 8},
-      false,
-      false,
-      Transparency.OPAQUE,
-      DataBuffer.TYPE_BYTE);
-    return new BufferedImage(cm, Raster.createInterleavedRaster(buffer, width, height, width * 3, 3, new int[]{0, 1, 2}, null), false, null);
 }
 
 //TODO you must write this method
@@ -220,14 +177,12 @@ public String extractString(String stego_image) {
 
         File decodeImage = new File(stego_image);
         BufferedImage imageBI = null;
-        byte[] imageBytesArray = null;
+        byte[] imagesPixelsBytesArray = null;
         try {
                 imageBI = ImageIO.read(decodeImage);
 
                 // image to bytes array
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(imageBI, "bmp", baos);
-                imageBytesArray = baos.toByteArray();
+                imagesPixelsBytesArray = ((DataBufferByte) imageBI.getRaster().getDataBuffer()).getData();
         } catch (IOException e) {
                 e.printStackTrace();
                 return "Fail";
@@ -237,13 +192,13 @@ public String extractString(String stego_image) {
         int h = imageBI.getHeight();
 
         // get number of bits to extract
-        int numOfBits = imageBytesArray[0];
+        int numOfBits = imagesPixelsBytesArray[0];
         System.out.println("numOfBits: " + numOfBits);
 
         ArrayList<Integer> msgChars = new ArrayList<Integer>();
         int decodedBit;
         for (int imageBytesIndex = 1 ; imageBytesIndex < numOfBits ; imageBytesIndex ++){
-          byte value = imageBytesArray[imageBytesIndex];
+          byte value = imagesPixelsBytesArray[imageBytesIndex];
           decodedBit = value & DE_MASK_1;
           msgChars.add(decodedBit);
         }

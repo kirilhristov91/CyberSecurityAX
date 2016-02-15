@@ -68,6 +68,7 @@ class Steg {
             fos.close();
         } catch (IOException e) {
             e.printStackTrace();
+            return "Fail";
         }
 
 
@@ -107,6 +108,7 @@ class Steg {
             result = new String(outSet.toByteArray(), "US-ASCII");
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
+            return "Fail";
         }
 
         return result;

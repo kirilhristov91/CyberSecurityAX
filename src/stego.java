@@ -115,44 +115,37 @@ class Steg {
     public String hideFile(String file_payload, String cover_image) {
         byte[] imageBytesArray = null;
         byte[] payloadBytesArray = null;
+        byte[] extensionBytes = new byte[extBitsLength / 8];
+        int n = file_payload.lastIndexOf('.');
         Path imagePath = Paths.get(cover_image);
         Path payloadPath = Paths.get(file_payload);
         try {
             imageBytesArray = Files.readAllBytes(imagePath);
             payloadBytesArray = Files.readAllBytes(payloadPath);
+            if (n > 0) {
+                String extension = file_payload.substring(n + 1);
+                System.arraycopy(extension.getBytes("US-ASCII"), 0, extensionBytes, 0, extension.getBytes().length);
+            }
         } catch (IOException e) {
             e.printStackTrace();
             return "Fail";
         }
-        byte[] extensionBytes = new byte[extBitsLength / 8];
-        int n = file_payload.lastIndexOf('.');
-        if (n > 0) {
-            try {
-                System.arraycopy(file_payload.substring(n + 1).getBytes("US-ASCII"), 0, extensionBytes, 0, file_payload.substring(n + 1).getBytes().length);
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-        }
+
         int availableBytesInPic = imageBytesArray.length;
 
         // save length
         for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
-            imageBytesArray[i] = (byte) swapLsb(
-                    getBit(payloadBytesArray.length, i - msgLengthStartIndex),
-                    imageBytesArray[i]);
+            imageBytesArray[i] = (byte) swapLsb(getBit(payloadBytesArray.length, i - msgLengthStartIndex), imageBytesArray[i]);
 
         }
 
         // zapisvame extension
         BitSet extSet = BitSet.valueOf(extensionBytes);
         int extSetIndex = 0;
-        int extSetLength = extBitsLength;
+        int extSetLength = extensionStartIndex + extBitsLength;
 
-        for (int currByteInImage = extensionStartIndex; currByteInImage < extSetLength; currByteInImage++) {
-            imageBytesArray[currByteInImage] = (byte) swapLsb(
-                    extSet.get(extSetIndex) ? 1 : 0,
-                    imageBytesArray[currByteInImage]
-            );
+        for (int currByteInImage = extensionStartIndex; currByteInImage < extensionEndIndex; currByteInImage++) {
+            imageBytesArray[currByteInImage] = (byte) swapLsb(extSet.get(extSetIndex++) ? 1 : 0, imageBytesArray[currByteInImage]);
         }
 
         // zapisvame payload-a
@@ -161,10 +154,7 @@ class Steg {
         int setLength = payloadBytesArray.length * byteLength;
 
         for (int currByteInImage = extensionEndIndex; currByteInImage < availableBytesInPic && setIndex < setLength; currByteInImage++) {
-            imageBytesArray[currByteInImage] = (byte) swapLsb(
-                    payloadSet.get(setIndex) ? 1 : 0,
-                    imageBytesArray[currByteInImage]);
-            setIndex++;
+            imageBytesArray[currByteInImage] = (byte) swapLsb(payloadSet.get(setIndex++) ? 1 : 0, imageBytesArray[currByteInImage]);
         }
 
         try {
@@ -200,14 +190,17 @@ class Steg {
         int outExtSetIndex = 0;
 
         for (int currByteInImage = extensionStartIndex; currByteInImage < extensionEndIndex; currByteInImage++) {
-            boolean bit = getBit(imageBytesArray[currByteInImage], 0) == 1;
-            outExtSet.set(outExtSetIndex, bit);
-            outExtSetIndex++;
+            outExtSet.set(outExtSetIndex++, getBit(imageBytesArray[currByteInImage], 0) == 1);
         }
 
         String extension = "";
         try {
-            extension = new String(outExtSet.toByteArray(), "US-ASCII");
+            byte[] extBytes = outExtSet.toByteArray();
+            int extSize;
+            for (extSize = 0; extSize < extBytes.length; extSize++) {
+                if (extBytes[extSize] == 0) break;
+            }
+            extension = new String(extBytes, 0, extSize, "US-ASCII");
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
@@ -216,9 +209,7 @@ class Steg {
         BitSet outFileSet = new BitSet();
         int outFileSetIndex = 0;
         for (int currByteInImage = extensionEndIndex; currByteInImage < extensionEndIndex + fileLength * byteLength; currByteInImage++) {
-            boolean bit = getBit(imageBytesArray[currByteInImage], 0) == 1;
-            outFileSet.set(outFileSetIndex, bit);
-            outFileSetIndex++;
+            outFileSet.set(outFileSetIndex++, getBit(imageBytesArray[currByteInImage], 0) == 1);
         }
 
 
@@ -229,8 +220,6 @@ class Steg {
             fos = new FileOutputStream(new File(outFileName));
             fos.write(outFileSet.toByteArray());
             fos.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }

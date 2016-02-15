@@ -195,14 +195,10 @@ class Steg {
 
         String extension = "";
         try {
-            byte[] extBytes = outExtSet.toByteArray();
-            int extSize;
-            for (extSize = 0; extSize < extBytes.length; extSize++) {
-                if (extBytes[extSize] == 0) break;
-            }
-            extension = new String(extBytes, 0, extSize, "US-ASCII");
+            extension = new String(outExtSet.toByteArray(), "US-ASCII");
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
+            return "Fail";
         }
 
         // get file bits

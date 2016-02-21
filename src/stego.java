@@ -128,16 +128,6 @@ class Steg {
         return result;
     }
 
-    private BitSet getData(byte[] source, int startIndex, int endIndex) {
-        BitSet outSet = new BitSet();
-        // for each byte (after the length bytes)
-        for (int currByteInImage = startIndex, outSetIndex = 0; currByteInImage < endIndex; currByteInImage++, outSetIndex++) {
-            //get the least significant bit and store it in the bitset
-            outSet.set(outSetIndex, getBit(source[currByteInImage], 0) == 1);
-        }
-        return outSet;
-    }
-
     /**
      * The hideFile method hides any file (so long as there's enough capacity in the image file) in a cover image
      *
@@ -303,12 +293,28 @@ class Steg {
         }
     }
 
+    /**
+     * Method for hiding data
+     *
+     * @param set         bitset containing the data to be hidden
+     * @param startIndex  the starting position of the write operation
+     * @param endIndex    the end index
+     * @param destination the bytes in which to hide data
+     */
     private void importBitsetInBytes(BitSet set, int startIndex, int endIndex, byte[] destination) {
         for (int currByteInImage = startIndex, setIndex = 0; currByteInImage < endIndex; currByteInImage++, setIndex++) {
             destination[currByteInImage] = (byte) swapLsb(set.get(setIndex) ? 1 : 0, destination[currByteInImage]);
         }
     }
 
+    /**
+     * Method to check if the destination provides enough space so that the payload can be saved withing the destination
+     *
+     * @param destination       destination
+     * @param offset            offset after which the data will be saved
+     * @param payloadBytesArray the payload data
+     * @return true if there is enough space, false otherwise
+     */
     private boolean hasEnoughSpace(byte[] destination, int offset, byte[] payloadBytesArray) {
         // calculate the available bytes to encode the message in
         int availableBytesInPic = destination.length - offset;
@@ -324,10 +330,34 @@ class Steg {
         return true;
     }
 
-    private int getLengthOfPayload(byte[] imageBytesArray) {
+    /**
+     * Method to extract hidden data from source
+     *
+     * @param source     the source
+     * @param startIndex the index of the byte from which the hidden data starts
+     * @param endIndex   the index of the last byte of hidden data
+     * @return bitset containing the extracted data
+     */
+    private BitSet getData(byte[] source, int startIndex, int endIndex) {
+        BitSet outSet = new BitSet();
+        // for each byte (after the length bytes)
+        for (int currByteInImage = startIndex, outSetIndex = 0; currByteInImage < endIndex; currByteInImage++, outSetIndex++) {
+            //get the least significant bit and store it in the bitset
+            outSet.set(outSetIndex, getBit(source[currByteInImage], 0) == 1);
+        }
+        return outSet;
+    }
+
+    /**
+     * Method for extracting length of hidden data from source
+     *
+     * @param source the source
+     * @return the length of the hidden data in bytes
+     */
+    private int getLengthOfPayload(byte[] source) {
         int msgLength = 0;
         for (int currByteInImage = msgLengthEndIndex; currByteInImage >= msgLengthStartIndex; currByteInImage--) {
-            msgLength = (msgLength << 1) | getBit(imageBytesArray[currByteInImage], 0);
+            msgLength = (msgLength << 1) | getBit(source[currByteInImage], 0);
         }
         return msgLength;
     }

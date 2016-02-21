@@ -39,7 +39,7 @@ class Steg {
     private final int extensionEndIndex = extensionStartIndex + extBitsLength;
 
     public Steg() {
-      // undeeded but provided constructor
+        // undeeded but provided constructor
     }
 
     /**
@@ -47,7 +47,7 @@ class Steg {
      * You can assume a .bmp will be used
      *
      * @param cover_filename - the filename of the cover image as a string
-     * @param payload - the string which should be hidden in the cover image.
+     * @param payload        - the string which should be hidden in the cover image.
      * @return a string which either contains 'Fail' or the name of the stego image which has been
      * written out as a result of the successful hiding operation.
      * You can assume that the images are all in the same directory as the java files
@@ -69,46 +69,20 @@ class Steg {
             return "Fail";
         }
 
-        // calculate the available bytes to encode the message in
-        int availableBytesInPic = imageBytesArray.length - msgLengthEndIndex;
-
-        // check if message is too big to be encoded in the given image
-        if(payloadBytesArray.length * byteLength > availableBytesInPic){
+        // check if enough space
+        if (!hasEnoughSpace(imageBytesArray, msgLengthEndIndex, payloadBytesArray)) {
             return "Fail";
         }
 
         // save the length of the message in the first 32 bytes after the headers
-        for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
-            // swap the least significant bit of the current byte with bit from the length
-            imageBytesArray[i] = (byte) swapLsb(
-                    getBit(payloadBytesArray.length, i - msgLengthStartIndex),
-                    imageBytesArray[i]);
-
-        }
+        saveLength(imageBytesArray, payloadBytesArray);
 
         // save the message
-        // get the message in bits
-        BitSet set = BitSet.valueOf(payloadBytesArray);
-        int setIndex = 0;
-        int setLength = payloadBytesArray.length * byteLength;
-
-        // for each byte in the image (after those that store the length)
-        for (int currByteInImage = msgLengthEndIndex; currByteInImage < availableBytesInPic && setIndex < setLength; currByteInImage++) {
-            // swap the least significant bit of the current byte with bit from the message
-            imageBytesArray[currByteInImage] = (byte) swapLsb(
-                    set.get(setIndex) ? 1 : 0,
-                    imageBytesArray[currByteInImage]);
-            setIndex++;
-        }
+        importBitsetInBytes(BitSet.valueOf(payloadBytesArray), msgLengthEndIndex, msgLengthEndIndex + payloadBytesArray.length * byteLength, imageBytesArray);
 
         // generate a result image file using the altered image byte array
-        String outFilename = "outSI.bmp";
-        try {
-            FileOutputStream fos = new FileOutputStream(new File(outFilename));
-            fos.write(imageBytesArray);
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        String outFilename = "outImage.bmp";
+        if (!saveBytesToFile(imageBytesArray, outFilename)) {
             return "Fail";
         }
 
@@ -119,7 +93,7 @@ class Steg {
     /**
      * The extractString method should extract a string which has been hidden in the stegoimage
      *
-     * @param the name of the stego image
+     * @param stego_image the name of the stego image
      * @return a string which contains either the message which has been extracted or 'Fail' which indicates the extraction
      * was unsuccessful
      */
@@ -136,19 +110,10 @@ class Steg {
         }
 
         // get the length of the encoded message
-        int msgLength = 0;
-        for (int currByteInImage = msgLengthEndIndex; currByteInImage >= msgLengthStartIndex; currByteInImage--) {
-            msgLength = (msgLength << 1) | getBit(imageBytesArray[currByteInImage], 0);
-        }
+        int msgLength = getLengthOfPayload(imageBytesArray);
 
         // bitset to store the bits of the encoded message
-        BitSet outSet = new BitSet();
-        int outSetIndex = 0;
-        // for each byte (after the length bytes)
-        for (int currByteInImage = msgLengthEndIndex; currByteInImage < msgLengthEndIndex + msgLength * byteLength; currByteInImage++) {
-            //get the least significant bit and store it in the bitset
-            outSet.set(outSetIndex++,getBit(imageBytesArray[currByteInImage], 0) == 1);
-        }
+        BitSet outSet = getData(imageBytesArray, msgLengthStartIndex, msgLengthEndIndex + msgLength * byteLength);
 
         // transform the bitset into string
         String result = "";
@@ -163,18 +128,28 @@ class Steg {
         return result;
     }
 
+    private BitSet getData(byte[] source, int startIndex, int endIndex) {
+        BitSet outSet = new BitSet();
+        // for each byte (after the length bytes)
+        for (int currByteInImage = startIndex, outSetIndex = 0; currByteInImage < endIndex; currByteInImage++, outSetIndex++) {
+            //get the least significant bit and store it in the bitset
+            outSet.set(outSetIndex, getBit(source[currByteInImage], 0) == 1);
+        }
+        return outSet;
+    }
+
     /**
      * The hideFile method hides any file (so long as there's enough capacity in the image file) in a cover image
      *
      * @param file_payload - the name of the file to be hidden, you can assume it is in the same directory as the program
-     * @param cover_image - the name of the cover image file, you can assume it is in the same directory as the program
+     * @param cover_image  - the name of the cover image file, you can assume it is in the same directory as the program
      * @return String - either 'Fail' to indicate an error in the hiding process, or the name of the stego image written out as a
      * result of the successful hiding process
      */
     public String hideFile(String file_payload, String cover_image) {
-        byte[] imageBytesArray = null;
-        byte[] payloadBytesArray = null;
-        byte[] extensionBytes = new byte[extBitsLength / 8];
+
+        // instantiating variable
+        byte[] imageBytesArray, payloadBytesArray, extensionBytes = new byte[extBitsLength / 8];
         int n = file_payload.lastIndexOf('.');
         Path imagePath = Paths.get(cover_image);
         Path payloadPath = Paths.get(file_payload);
@@ -195,47 +170,25 @@ class Steg {
             return "Fail";
         }
 
-        // calculate the available bytes to encode the file bits
-        int availableBytesInPic = imageBytesArray.length - extensionEndIndex;
-
-        // check if message is too big to be encoded in the given image
-        if(payloadBytesArray.length * byteLength > availableBytesInPic){
+        // check if enough space
+        if (hasEnoughSpace(imageBytesArray, extensionEndIndex, payloadBytesArray)) {
             return "Fail";
         }
-        //
 
         // save the length of the file to be hidden in the first 32 bytes after the headers
-        for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
-            imageBytesArray[i] = (byte) swapLsb(getBit(payloadBytesArray.length, i - msgLengthStartIndex), imageBytesArray[i]);
-
-        }
+        saveLength(imageBytesArray, payloadBytesArray);
 
         // save the extension in the 64 bytes after the length bytes
-        BitSet extSet = BitSet.valueOf(extensionBytes);
-        int extSetIndex = 0;
-        for (int currByteInImage = extensionStartIndex; currByteInImage < extensionEndIndex; currByteInImage++) {
-            imageBytesArray[currByteInImage] = (byte) swapLsb(extSet.get(extSetIndex++) ? 1 : 0, imageBytesArray[currByteInImage]);
-        }
+        importBitsetInBytes(BitSet.valueOf(extensionBytes), extensionStartIndex, extensionEndIndex, imageBytesArray);
 
-        // save the file bits
-        BitSet payloadSet = BitSet.valueOf(payloadBytesArray);
-        // for each byte in the image (after the extension bytes)
-        for (int currByteInImage = extensionEndIndex, setIndex = 0; setIndex < payloadBytesArray.length * byteLength; currByteInImage++, setIndex ++) {
-            // swap the least significant bit with such from the file bits
-            imageBytesArray[currByteInImage] = (byte) swapLsb(payloadSet.get(setIndex) ? 1 : 0, imageBytesArray[currByteInImage]);
-        }
+        // save data in rest of image's bytes
+        importBitsetInBytes(BitSet.valueOf(payloadBytesArray), extensionEndIndex, extensionEndIndex + payloadBytesArray.length * byteLength, imageBytesArray);
 
-        // generate an image file using the altered imageBytesArray
+        // try to save it to a file
         String outFilename = "outFile.bmp";
-        try {
-            FileOutputStream fos = new FileOutputStream(new File(outFilename));
-            fos.write(imageBytesArray);
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (!saveBytesToFile(imageBytesArray, outFilename)) {
             return "Fail";
         }
-
         // return the name of the generated image
         return outFilename;
     }
@@ -258,17 +211,11 @@ class Steg {
         }
 
         // get the length of the file
-        int fileLength = 0;
-        for (int currByteInImage = msgLengthEndIndex; currByteInImage >= msgLengthStartIndex; currByteInImage--) {
-            fileLength = (fileLength << 1) | getBit(imageBytesArray[currByteInImage], 0);
-        }
+        int fileLength = getLengthOfPayload(imageBytesArray);
 
         // get extension bits
-        BitSet outExtSet = new BitSet();
-        int outExtSetIndex = 0;
-        for (int currByteInImage = extensionStartIndex; currByteInImage < extensionEndIndex; currByteInImage++) {
-            outExtSet.set(outExtSetIndex++, getBit(imageBytesArray[currByteInImage], 0) == 1);
-        }
+        BitSet outExtSet = getData(imageBytesArray, extensionStartIndex, extensionEndIndex);
+
         // transform the gathered extension bits to string
         String extension = "";
         try {
@@ -279,22 +226,11 @@ class Steg {
         }
 
         // get file bits
-        BitSet outFileSet = new BitSet();
-        int outFileSetIndex = 0;
-        // get the least significant bit of each byte between the extension bytes and the byte containing the last bit of the file
-        for (int currByteInImage = extensionEndIndex; currByteInImage < extensionEndIndex + fileLength * byteLength; currByteInImage++) {
-            outFileSet.set(outFileSetIndex++, getBit(imageBytesArray[currByteInImage], 0) == 1);
-        }
+        BitSet outFileSet = getData(imageBytesArray, extensionEndIndex, extensionEndIndex + fileLength * byteLength);
 
         // generate the file
         String outFileName = "extractedFile" + "." + extension;
-        FileOutputStream fos = null;
-        try {
-            fos = new FileOutputStream(new File(outFileName));
-            fos.write(outFileSet.toByteArray());
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (!saveBytesToFile(outFileSet.toByteArray(), outFileName)) {
             return "Fail";
         }
 
@@ -306,7 +242,7 @@ class Steg {
      * This method swaps the least significant bit with a bit from the filereader
      *
      * @param bitToHide - the bit which is to replace the lsb of the byte of the image
-     * @param byt - the current byte
+     * @param byt       - the current byte
      * @return the altered byte
      */
     public int swapLsb(int bitToHide, int byt) {
@@ -316,24 +252,87 @@ class Steg {
     }
 
     /**
-    * Get bit from Byte
-    *
-    * @param b base byte
-    * @param position the position of the desired bit from the byte
-    * @return value of the bit at the desired position in the byte.
-    */
+     * Get bit from Byte
+     *
+     * @param b        base byte
+     * @param position the position of the desired bit from the byte
+     * @return value of the bit at the desired position in the byte.
+     */
     public int getBit(byte b, int position) {
         return (b >> position) & 1;
     }
 
     /**
-    * Get bit from Int
-    *
-    * @param i base integer
-    * @param position the position of the desired bit from the integer
-    * @return value of the bit at the desired position in the integer.
-    */
+     * Get bit from Int
+     *
+     * @param i        base integer
+     * @param position the position of the desired bit from the integer
+     * @return value of the bit at the desired position in the integer.
+     */
     public int getBit(int i, int position) {
         return (i >> position) & 1;
     }
+
+    /**
+     * Save bytes to file
+     *
+     * @param bytes    bytes to save
+     * @param fileName the name of the file
+     * @throws IOException
+     */
+    private boolean saveBytesToFile(byte[] bytes, String fileName) {
+        try {
+            FileOutputStream fos = new FileOutputStream(new File(fileName));
+            fos.write(bytes);
+            fos.close();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * saves the length
+     *
+     * @param destination       destination
+     * @param payloadBytesArray payload
+     */
+    private void saveLength(byte[] destination, byte[] payloadBytesArray) {
+        ArrayList<Integer> savedBits = new ArrayList<>();
+        for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
+            int bitToSave = getBit(payloadBytesArray.length, i - msgLengthStartIndex);
+            savedBits.add(bitToSave);
+            destination[i] = (byte) swapLsb(bitToSave, destination[i]);
+        }
+    }
+
+    private void importBitsetInBytes(BitSet set, int startIndex, int endIndex, byte[] destination) {
+        for (int currByteInImage = startIndex, setIndex = 0; currByteInImage < endIndex; currByteInImage++, setIndex++) {
+            destination[currByteInImage] = (byte) swapLsb(set.get(setIndex) ? 1 : 0, destination[currByteInImage]);
+        }
+    }
+
+    private boolean hasEnoughSpace(byte[] destination, int offset, byte[] payloadBytesArray) {
+        // calculate the available bytes to encode the message in
+        int availableBytesInPic = destination.length - offset;
+
+        // calculate required space
+        int requiredSpaceInBits = payloadBytesArray.length * byteLength;
+
+        // check if message is too big to be encoded in the given image
+        // we write 1bit of payload data per 1byte ot image data
+        if (requiredSpaceInBits > availableBytesInPic) {
+            return false;
+        }
+        return true;
+    }
+
+    private int getLengthOfPayload(byte[] imageBytesArray) {
+        int msgLength = 0;
+        for (int currByteInImage = msgLengthEndIndex; currByteInImage >= msgLengthStartIndex; currByteInImage--) {
+            msgLength = (msgLength << 1) | getBit(imageBytesArray[currByteInImage], 0);
+        }
+        return msgLength;
+    }
+
 }

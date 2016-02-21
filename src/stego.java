@@ -113,7 +113,7 @@ class Steg {
         int msgLength = getLengthOfPayload(imageBytesArray);
 
         // bitset to store the bits of the encoded message
-        BitSet outSet = getData(imageBytesArray, msgLengthStartIndex, msgLengthEndIndex + msgLength * byteLength);
+        BitSet outSet = getData(imageBytesArray, msgLengthEndIndex, msgLengthEndIndex + msgLength * byteLength);
 
         // transform the bitset into string
         String result = "";
@@ -171,7 +171,7 @@ class Steg {
         }
 
         // check if enough space
-        if (hasEnoughSpace(imageBytesArray, extensionEndIndex, payloadBytesArray)) {
+        if (!hasEnoughSpace(imageBytesArray, extensionEndIndex, payloadBytesArray)) {
             return "Fail";
         }
 

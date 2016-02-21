@@ -298,11 +298,8 @@ class Steg {
      * @param payloadBytesArray payload
      */
     private void saveLength(byte[] destination, byte[] payloadBytesArray) {
-        ArrayList<Integer> savedBits = new ArrayList<>();
         for (int i = msgLengthStartIndex; i < msgLengthEndIndex; i++) {
-            int bitToSave = getBit(payloadBytesArray.length, i - msgLengthStartIndex);
-            savedBits.add(bitToSave);
-            destination[i] = (byte) swapLsb(bitToSave, destination[i]);
+            destination[i] = (byte) swapLsb(getBit(payloadBytesArray.length, i - msgLengthStartIndex), destination[i]);
         }
     }
 
